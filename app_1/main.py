@@ -1,34 +1,36 @@
-import asyncio
-import datetime
 import uvicorn
-import random
+
 from fastapi import FastAPI
+from pymongo import MongoClient
+from pydantic import BaseModel
 
+
+client = MongoClient('mongodb://db:27017/')
+db = client['mydatabase']
+collection = db['mycollection']
 app = FastAPI()
-db = {}
-global counter
-counter = 0
+
+class Item(BaseModel):
+    name: str
+    description: str
+    price: float
 
 
-@app.get("/")
-async def get_current_time():
-    return {db}
+def get_obj_from_obj_mongo(mongo_obj):
+    id_mongo_obj = str(mongo_obj['_id'])
+    del mongo_obj['_id']
+    mongo_obj['id_'] = id_mongo_obj
+    return mongo_obj
 
 
-async def send_current_time_count_random_int():
-    global counter
-    while True:
-        current_time = datetime.datetime.now().strftime("%H:%M:%S")
-        counter += 1
-        random_num = random.randint(1, 100)
-        db['current_time'] = current_time
-        db['counter'] = counter
-        db['random_int'] = random_num
-        print(db)
-        await asyncio.sleep(5)
+@app.get('/items/')
+async def read_items():
+    items = collection.find()
+    return [get_obj_from_obj_mongo(item) for item in items]
 
 
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(send_current_time_count_random_int())
+@app.post('/items/')
+async def create_item(item: Item):
+    result = collection.insert_one(item.dict())
+    return str(result.inserted_id)
 
